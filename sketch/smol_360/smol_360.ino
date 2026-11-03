@@ -1,6 +1,6 @@
-// SmolFem-360M (fine-tuned SmolLM2-135M, 4-bit) running on the ESP32-S3 N16R8, streamed layer by layer from the SD card.
+// SmolFem-360M (smolFem by Ambika, a fine-tune of SmolLM2-360M, 4-bit) running on the ESP32-S3 N16R8, streamed layer by layer from the SD card.
 // Question in over Bluetooth LE (phone terminal app) or USB serial; answer on the 2" screen, in Bluetooth and on serial.
-// Wiring: see sd-stream/WIRING.md.  Files on the SD card: /SMOL/model.bin, head.bin, bpe.bin (made by scripts/export_sd.py).
+// Wiring: see docs/HOWTO.md.  Files on the SD card: /SMOL360/model.bin and bpe.bin (made by scripts/export_sd360.py); head.bin goes into the flash partition "head".
 // Port of sd-stream/engine/engine.c: batch of tokens per pass for the prompt, one token per pass for the answer, bfloat16 K/V cache.
 #include <Arduino.h>
 #include <SPI.h>

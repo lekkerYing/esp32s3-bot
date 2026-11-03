@@ -73,7 +73,7 @@ All the files are in one repository: https://github.com/lekkerYing/esp32s3-bot
     scripts/            qat360.py, export_sd360.py, make_draft360.py: shrink the model, export the files, build the guess table
     docs/HOWTO.md       this guide
 
-The big model files (`model.bin`, `bpe.bin`, `head.bin`) are not in git because `model.bin` is 224 MB. Download them from **MODEL-LINK-TO-ADD**, or make them yourself with the scripts as described below.
+The big model files (`model.bin`, `bpe.bin`, `head.bin`) are not in git because `model.bin` is 224 MB. Download them from https://huggingface.co/LekkerYing/smolfem-360m-esp32, or make them yourself with the scripts as described below.
 
 ### Get the model onto the SD card
 

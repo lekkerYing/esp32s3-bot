@@ -12,6 +12,6 @@ Run the scripts from the `scripts` folder, in this order. They read settings fro
 2. `python export_sd360.py` writes `model.bin`, `bpe.bin` and `head.bin`
 3. `python make_draft360.py` rebuilds `draft_data.h`
 
-`model.bin`, `bpe.bin` and `head.bin` are not stored in git (`*.bin` is ignored). On the SD card, `model.bin` and `bpe.bin` go in a folder called `SMOL360`. `head.bin` is written to the board's flash at 0x210000.
+`model.bin`, `bpe.bin` and `head.bin` are not stored in git (`*.bin` is ignored). Download them from Hugging Face: https://huggingface.co/LekkerYing/smolfem-360m-esp32. On the SD card, `model.bin` and `bpe.bin` go in a folder called `SMOL360`. `head.bin` is written to the board's flash at 0x210000.
 
 The scripts need Python with torch, transformers and numpy. They were written on Windows and tested there.

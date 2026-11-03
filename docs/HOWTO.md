@@ -74,7 +74,7 @@ The Bluetooth, SD and fast maths (esp-dsp) libraries come with the ESP32 core. N
 
 ### Get the files
 
-All the files are in one repository: **REPO-LINK-TO-ADD**
+All the files are in one repository: https://github.com/lekkerYing/esp32s3-bot
 
     sketch/smol_360/    the Arduino sketch, its partitions.csv and draft_data.h (the guess table)
     scripts/            qat360.py, export_sd360.py, make_draft360.py: shrink the model, export the files, build the guess table

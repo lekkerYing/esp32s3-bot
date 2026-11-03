@@ -1,10 +1,3 @@
----
-title: "How to run a small language model on an ESP32-S3 N16R8"
-date: 2026-11-03
-draft: true
-summary: "Run SmolFem 360M on a 5 euro chip by streaming the model from an SD card, and measure how much energy one answer costs."
----
-
 # How to run a small language model on an ESP32-S3 N16R8
 
 ## Streaming SmolFem 360M from an SD card

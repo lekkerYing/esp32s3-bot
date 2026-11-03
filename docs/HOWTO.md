@@ -4,7 +4,7 @@
 
 This guide is for the **ESP32-S3 DevKitC-1 board with the WROOM-1 N16R8 module** (16 MB flash, 8 MB octal PSRAM, two USB-C ports).
 
-The idea: the model (224 MB at 4-bit) does not fit in the chip, so the board reads it from an SD card one layer at a time while it calculates. It works, but it is slow and it is a memoriser: it answers the questions it was trained on and makes things up for the rest. The point is the experiment, and measuring how much energy one answer takes compared to the Raspberry Pi 5 in the solarbot.
+The model is smolFem, a small language model by Ambika, fine-tuned on her feminist dataset. The idea: the model (224 MB at 4-bit) does not fit in the chip, so the board reads it from an SD card one layer at a time while it calculates. It works, but it is slow and it is a memoriser: it answers the questions it was trained on and makes things up for the rest. The point is the experiment, and measuring how much energy one answer takes compared to the Raspberry Pi 5 in the solarbot.
 
 ### What you need
 
@@ -77,7 +77,7 @@ The big model files (`model.bin`, `bpe.bin`, `head.bin`) are not in git because 
 
 ### Get the model onto the SD card
 
-You need the model files. We made them from smolFem (a LoRA fine-tune of SmolLM2-360M-Instruct, made by Ambika on her own data). The scripts are in the `scripts` folder of the repository (see "Get the files") and the Python needs torch, transformers and numpy.
+You need the model files. We made them from smolFem (a LoRA fine-tune of SmolLM2-360M-Instruct, made by Ambika on her own feminist dataset). The scripts are in the `scripts` folder of the repository (see "Get the files") and the Python needs torch, transformers and numpy.
 
 1. **Shrink the model to 4 bit.** Plain rounding to 4 bit drops the word accuracy on the dataset from 71.8 percent to about 50 percent. So we retrain the 4-bit copy to copy the full model (quantization-aware distillation): `python qat360.py` (set `SMOLFEM_DIR` to the folder with the full smolFem model and `DATA_DIR` to the folder with the dataset). After that it scores 71.0 percent and agrees with the full model on 92 percent of its words.
 2. **Export the files:** `python export_sd360.py`. This writes three files:
@@ -128,7 +128,7 @@ The screen shows the question in yellow, the answer as it is written in green, a
 * **A question it never learned:** about 2 minutes per word. "What is your favorite color?" with `/full` took 2 h 19 min for 73 words and rambled. That is why a plain question stops after 30 words.
 * The SD card is the bottleneck. In SPI mode we measured at most 1.8 MB/s, and every word needs the whole 224 MB model read once.
 
-**Why it is not slower: guessing ahead.** The board guesses the next words from a table of the model's own answers and then checks up to 32 guesses in one pass over the SD card. A guess is only accepted if the model's own best word is the same, so the answer is exactly what the model would have written anyway. For questions in the dataset this brought a 26 minute answer (135M model) down to 2 minutes and for the 360M model to about 6.5 minutes. For other questions there is nothing to guess from.
+**Why it is not slower: guessing ahead.** The board guesses the next words from a table of the model's own answers and then checks up to 32 guesses in one pass over the SD card. A guess is only accepted if the model's own best word is the same, so the answer is exactly what the model would have written anyway. For questions in the dataset this brought a 26 minute answer on our first, smaller version down to 2 minutes and for the 360M model to about 6.5 minutes. For other questions there is nothing to guess from.
 
 **Speed ups that worked:** reading the next layer on one core while the other core calculates; the chip's own dot product routine (esp-dsp); keeping the input in internal RAM.
 
@@ -165,7 +165,7 @@ The power stays about the same, so the energy per answer depends almost only on 
 
 ### Sources and thanks
 
-* Model smolFem and its dataset: Ambika, Computational Mama (a LoRA fine-tune of SmolLM2-360M-Instruct)
+* Model smolFem and its feminist dataset: Ambika, Computational Mama (a LoRA fine-tune of SmolLM2-360M-Instruct)
 * [SmolLM2, Hugging Face](https://huggingface.co/HuggingFaceTB)
 * [DaveBben, esp32-llm](https://github.com/DaveBben/esp32-llm)
 * [slvDev, esp32-ai](https://github.com/slvDev/esp32-ai) and its [Barista model](https://huggingface.co/slvDev/esp32-ai-barista) (the idea of limiting the output words)

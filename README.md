@@ -1,6 +1,6 @@
 # SmolFem 360M on an ESP32-S3 N16R8
 
-Runs a 4-bit version of smolFem (a LoRA fine-tune of SmolLM2-360M-Instruct) on an ESP32-S3 DevKitC-1 board with the WROOM-1 N16R8 module. The model is streamed layer by layer from an SD card. The full guide is in [docs/HOWTO.md](docs/HOWTO.md): wiring, tools, flashing, asking questions and measuring energy.
+Runs a 4-bit version of smolFem (a LoRA fine-tune of SmolLM2-360M-Instruct on Ambika's feminist dataset) on an ESP32-S3 DevKitC-1 board with the WROOM-1 N16R8 module. The model is streamed layer by layer from an SD card. The full guide is in [docs/HOWTO.md](docs/HOWTO.md): wiring, tools, flashing, asking questions and measuring energy.
 
     sketch/smol_360/   Arduino sketch, partitions.csv, draft_data.h (guess table)
     scripts/           qat360.py, export_sd360.py, make_draft360.py

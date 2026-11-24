@@ -5,6 +5,7 @@ Runs a 4-bit version of smolFem (a LoRA fine-tune of SmolLM2-360M-Instruct on Am
     sketch/smol_360/   Arduino sketch, partitions.csv, draft_data.h (guess table)
     scripts/           qat360.py, export_sd360.py, make_draft360.py
     docs/HOWTO.md      the guide
+    docs/STRUGGLES.md  what we tried, what went wrong and what we changed
 
 Run the scripts from the `scripts` folder, in this order. They read settings from environment variables: `SMOLFEM_DIR` (the full smolFem model folder), `DATA_DIR` (the dataset folder with the cleaned train and valid files), `OUT_DIR` (where the exported files go).
 

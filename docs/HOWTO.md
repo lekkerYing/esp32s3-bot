@@ -11,7 +11,7 @@ The model is smolFem, a small language model by Ambika, fine-tuned on her femini
 * ESP32-S3 N16R8 DevKitC-1 board (check that the chip says N16R8, or you will have no PSRAM)
 * microSD card, 32 GB, formatted FAT32, and an SPI card reader that runs on **3.3 V** (not the 5 V type, see the warning at the wiring)
 * 2.0 inch SPI screen with an ST7789V controller (240 x 320, pins VCC GND DIN CLK CS DC RST BL)
-* Breadboard and jumper wires
+* A protoboard (or breadboard) and jumper wires. We soldered everything on a protoboard: loose breadboard wires gave us black screens and SD errors
 * A laptop with Windows or a Mac, a USB-C cable that carries data
 * A phone with the app **Serial Bluetooth Terminal** (Kai Morich) to ask questions
 
@@ -26,11 +26,13 @@ Hold the board with the antenna at the top and the two USB-C ports at the bottom
     Screen VCC  to  3V3 rail
     Screen BL   to  3V3 rail
     Screen GND  to  GND rail
-    Screen DIN  to  GPIO 40
-    Screen CLK  to  GPIO 39
+    Screen DIN  to  GPIO 2
+    Screen CLK  to  GPIO 42
     Screen CS   to  GPIO 41
-    Screen DC   to  GPIO 42
-    Screen RST  to  GPIO 2
+    Screen DC   to  GPIO 40
+    Screen RST  to  GPIO 39
+
+The screen module has 9 pins. The ninth one (MISO / CS2, for a font chip on the module) is not used. The sketch expects exactly these pins (`TFT_MOSI 2`, `TFT_SCK 42`, `TFT_CS 41`, `TFT_DC 40`, `TFT_RST 39`). If you change a wire, change the same line in the sketch and flash again.
 
 **SD card reader (SPI)**
 
@@ -136,9 +138,10 @@ The screen shows the question in yellow, the answer as it is written in green, a
 
 To compare with the Pi 5, the INA219 sits in the middle of the 5 V wire between the battery and the board, so all current goes through it.
 
-    PiSugar 5V output  to  INA219 VIN+
+    PiSugar 5V Output  to  INA219 VIN+
     INA219 VIN-        to  ESP32 5V pin
     PiSugar GND        to  ESP32 GND
+    PiSugar MDAT pad (under 5V Output)  to  GND
     INA219 VCC         to  3V3
     INA219 GND         to  GND (the same ground)
     INA219 SDA         to  GPIO 4
@@ -146,7 +149,9 @@ To compare with the Pi 5, the INA219 sits in the middle of the 5 V wire between 
 
 VIN+ and VIN- are the big terminals, VCC is the small logic pin. Do not mix them up. If another wire still joins the battery to the board, the INA219 reads zero.
 
-Unplug the USB when you measure, or the laptop shares the load. The board prints the energy of each question on the screen, on serial and over Bluetooth, and writes a line to the SD card (`energy_questions.csv` and `energy_samples.csv`): words, seconds, mWh, average mW, peak mA and volts. Send `/time` after every power-up or the rows get no date. Run `/idle` too, so you can subtract what the board uses doing nothing.
+Our final build also has a USB-C cable from the ESP32's USB port to the PiSugar's USB-C port. With the board powered only through the INA219 wires our screen stayed black, with the cable it works. Check with `/idle` that the INA219 still sees the current (a cable can bypass it): the earlier idle reading with only the INA219 wires was about 497 mW.
+
+Unplug the USB from the laptop when you measure, or the laptop shares the load. The board prints the energy of each question on the screen, on serial and over Bluetooth, and writes a line to the SD card (`energy_questions.csv` and `energy_samples.csv`): words, seconds, mWh, average mW, peak mA and volts. Send `/time` after every power-up or the rows get no date. Run `/idle` too, so you can subtract what the board uses doing nothing.
 
 First results (screen backlight dimmed, battery PiSugar 3, USB unplugged):
 
@@ -155,9 +160,15 @@ First results (screen backlight dimmed, battery PiSugar 3, USB unplugged):
 
 The power stays about the same, so the energy per answer depends almost only on how long it takes. Idle was 497 mW (dimmed backlight). Compare it with the Pi 5 carefully: the Pi page reads the Pi's own power chip (board only), the INA219 measures the whole ESP32 board including screen and SD card.
 
+### Run a list of questions by itself
+
+Put a file `questions.txt` on the card (one question per line, lines starting with `#` are skipped) and send `/batch`. The board answers them one after another and carries on where it stopped after a power cut (`/batch_pos.txt`). An empty file `/autorun.txt` on the card starts the batch 20 s after power-up. `/batch restart` starts again from question 1. Every answer stops at 30 words, and the card gets `energy_questions.csv`, `energy_samples.csv`, `energy_answers.csv` and `boots.csv`.
+
+`boots.csv` has a row for every start with the reason (power on, brownout, watchdog). In our 8 hour run the board restarted 16 times, mostly the software watchdog. The sketch now gives the watchdog 20 s and remembers where it was, and thanks to `batch_pos.txt` the list still finished.
+
 ### If something goes wrong
 
-* **Screen black, SD "mount FAILED":** almost always a loose wire or solder joint on 3V3 or GND. Wiggle the wires, check VCC and GND of the screen and the reader.
+* **Screen black, SD "mount FAILED":** almost always a loose wire or solder joint on 3V3 or GND. This happened to us twice; soldering the 3V3 and GND lines on a protoboard fixed it. Wiggle the wires, check VCC and GND of the screen and the reader.
 * **Upload fails with "Access is denied":** a serial monitor is still open.
 * **"waiting for download" in the serial text:** the board is still in download mode, press RST on its own.
 * **Colours or picture wrong on the screen:** the sketch uses SPI mode 3, 40 MHz, rotation 1 and the Adafruit ST7789 library.

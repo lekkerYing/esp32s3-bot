@@ -1,6 +1,6 @@
-// SmolFem-360M (smolFem by Ambika, a fine-tune of SmolLM2-360M, 4-bit) running on the ESP32-S3 N16R8, streamed layer by layer from the SD card.
+// SmolFem-360M (fine-tuned SmolLM2-135M, 4-bit) running on the ESP32-S3 N16R8, streamed layer by layer from the SD card.
 // Question in over Bluetooth LE (phone terminal app) or USB serial; answer on the 2" screen, in Bluetooth and on serial.
-// Wiring: see docs/HOWTO.md.  Files on the SD card: /SMOL360/model.bin and bpe.bin (made by scripts/export_sd360.py); head.bin goes into the flash partition "head".
+// Wiring: see sd-stream/WIRING.md.  Files on the SD card: /SMOL/model.bin, head.bin, bpe.bin (made by scripts/export_sd.py).
 // Port of sd-stream/engine/engine.c: batch of tokens per pass for the prompt, one token per pass for the answer, bfloat16 K/V cache.
 #include <Arduino.h>
 #include <SPI.h>
@@ -14,6 +14,8 @@
 #include <BLE2902.h>
 #include "esp_heap_caps.h"
 #include "esp_partition.h"
+#include "esp_task_wdt.h"
+#include "esp_system.h"
 #include <Wire.h>
 #include <math.h>
 #include <stdarg.h>
@@ -26,16 +28,18 @@
 #define SD_MOSI 11
 #define SD_SCK  12
 #define SD_MISO 13
-#define TFT_SCK  39
-#define TFT_MOSI 40
+#define SD_HZ   20000000   // SD card SPI clock. 40 MHz was tried on 10 Nov: no faster (1.51 MB/s at 20, 26.7 and 40 MHz), and one boot failed to mount. Test with /sdspeed
+#define TFT_SCK  42   // new layout 9 Nov: RST 39, DC 40, CS 41, CLK 42, DIN 2
+#define TFT_MOSI 2
 #define TFT_CS   41
-#define TFT_DC   42
-#define TFT_RST  2
+#define TFT_DC   40
+#define TFT_RST  39
 // screen BL wire goes to 3V3 (since 3 Nov): the backlight is always on at full brightness and GPIO 14 is free
 
 #define MAXPOS 96            // prompt + answer must fit (K/V cache in PSRAM: 2.2 MB)
 #define MAXB   32            // tokens per pass: prompt tokens plus guesses, or the token plus its guesses
 #define DEMO_TOKENS 30       // default answer length; "/full question" lifts it
+#define BATCH_FULL false  // /batch answers up to FULL_TOKENS words (set false for the 30 word limit); a line in questions.txt can start with /short or /full to override
 #define FULL_TOKENS 60       // longest answer with /full (about 45 words is the longest dataset answer); a plain question stops at DEMO_TOKENS
 #define MAX_ANSWER_S 0       // optional time limit per answer in seconds (0 = off), cut off after the round that passes it
 #define USE_BLE 1           // Bluetooth on. Its radio bursts add current peaks: if the board browns out, set this to 0 and use USB serial
@@ -123,7 +127,7 @@ static bool sd_read(uint32_t off, void *dst, size_t n) {
     ui_error("SD read error: check reader power (XH board) and wires");
     gModel.close(); SD.end(); delay(500);
     sdspi.end(); sdspi.begin(SD_SCK, SD_MISO, SD_MOSI, SD_CS);
-    if (SD.begin(SD_CS, sdspi, 20000000)) gModel = SD.open("/SMOL360/model.bin", FILE_READ);
+    if (SD.begin(SD_CS, sdspi, SD_HZ)) gModel = SD.open("/SMOL360/model.bin", FILE_READ);
     delay(attempt < 5 ? 500 : 3000);
   }
 }
@@ -381,6 +385,10 @@ static float gFrac0 = 0, gFrac1 = 1;   // progress window of this pass inside th
 // is busy multiplying the current one. A layer is a list of UPL blocks (7 tensors, RB rows each); block number i = layer * UPL + unit
 // uses buffer wb[i & 1]. semFree[s] = buffer s may be filled, semReady[s] = buffer s holds its block.
 // Only the reader task touches the SD card during a pass.
+// Where was each core when the board last restarted? Kept in RTC memory (survives a watchdog reset) and written to /boots.csv at the next boot.
+RTC_NOINIT_ATTR static uint32_t gDbgMagic, gDbgR, gDbgM;
+static inline void dbgR(uint32_t v) { gDbgR = v; }
+static inline void dbgM(uint32_t v) { gDbgM = v; }
 static uint8_t *wb[2];
 static SemaphoreHandle_t semFree[2], semReady[2], semGo;
 static volatile int pf_layers = 0;                 // how many layers the pass in progress has
@@ -398,9 +406,10 @@ static bool sd_read_bg(uint32_t off, void *dst, size_t n) {
     }
     if (ok) return true;
     Serial.printf("SD read failed (offset %u, attempt %d), re-mounting the card\n", (unsigned)off, attempt + 1);
+    dbgR(0x30000 + attempt);
     gModel.close(); SD.end(); delay(500);
     sdspi.end(); sdspi.begin(SD_SCK, SD_MISO, SD_MOSI, SD_CS);
-    if (SD.begin(SD_CS, sdspi, 20000000)) gModel = SD.open("/SMOL360/model.bin", FILE_READ);
+    if (SD.begin(SD_CS, sdspi, SD_HZ)) gModel = SD.open("/SMOL360/model.bin", FILE_READ);
     delay(attempt < 5 ? 500 : 3000);
   }
 }
@@ -411,8 +420,11 @@ static void reader_task(void *) {
     const int total = pf_layers * UPL;
     for (int i = 0; i < total; i++) {
       const int s = i & 1, l = i / UPL, u = i % UPL;
+      dbgR(0x10000 + i);
       xSemaphoreTake(semFree[s], portMAX_DELAY);
+      dbgR(0x20000 + i);
       sd_read_bg(layers_off + (uint32_t)l * layer_stride + uOff[u], wb[s], uBytes[u]);
+      dbgR(0x40000 + i);
       xSemaphoreGive(semReady[s]);
       if ((u & 7) == 7) vTaskDelay(1);     // the SPI read busy-waits and would starve core 0's idle task (task watchdog)
     }
@@ -449,8 +461,10 @@ static void tensor_mm(int layer, int idx, int out, int in, uint32_t *off, const 
   for (int b = 0; b < tBlocks[idx]; b++) {
     const int u = tUnit0[idx] + b, slot = ((long)layer * UPL + u) & 1;
     uint32_t t0 = millis();
+    dbgM(10000000 + layer * 100 + idx);
     xSemaphoreTake(semReady[slot], portMAX_DELAY);             // waits only if the reader has not finished this block yet
     uint32_t t1 = millis();
+    dbgM(20000000 + layer * 100 + idx);
     matmul_blk(wb[slot], uRows[u], tIn[idx], Xin, n, Y + (size_t)b * RB, tOut[idx]);
     xSemaphoreGive(semFree[slot]);                             // the reader may now fill this buffer with the block after next
     tw += t1 - t0; tm += millis() - t1;
@@ -460,7 +474,9 @@ static void tensor_mm(int layer, int idx, int out, int in, uint32_t *off, const 
   snprintf(a, sizeof a, "%s: layer %d/%d  %s  (wait %.1fs, math %.1fs)", gPhase, layer + 1, L, TNAME[idx], tw / 1000.0f, tm / 1000.0f);
   if (ina_ok) snprintf(b, sizeof b, "words %d | %s | %.1f mWh | %.0f mW", gWords, tmb, ina_mwh - gE0, (float)ina_v * (float)ina_ma);
   else snprintf(b, sizeof b, "words %d  |  elapsed %s", gWords, tmb);
+  dbgM(30000000 + layer * 100 + idx);
   ui_status(a, frac, b);
+  dbgM(40000000 + layer * 100 + idx);
   if (idx == 6) Serial.printf("[%s] layer %d/%d done, %lu s since start\n", gPhase, layer + 1, L, (unsigned long)((millis() - gStart) / 1000));
   vTaskDelay(1);
 }
@@ -689,11 +705,27 @@ static bool log_to_sd(const char *q, bool full, int words, uint32_t totalMs, uin
   return true;
 }
 
+static char gAns[1400]; static int gAnsN = 0;   // the answer text, kept so it can be saved to the SD card with the energy row
+// Full answer text next to the energy row: /energy_answers.csv  boot,q,question,answer  (same boot and q as energy_questions.csv)
+static bool log_answer_to_sd(const char *q) {
+  bool fresh = !SD.exists("/energy_answers.csv");
+  File f = SD.open("/energy_answers.csv", FILE_APPEND);
+  if (!f) return false;
+  if (fresh) f.println("boot,q,question,answer");
+  static char qs[260], as[1500];
+  csv_text(qs, sizeof qs, q); csv_text(as, sizeof as, gAns);
+  f.printf("%04X,%d,%s,%s\n", (unsigned)gBootId, gQnum, qs, as);
+  f.close();
+  return true;
+}
+
 // ------------------------------------------------------------------ answering
 static float gHid[960];
 
 static void emit_piece(int w) {
   const uint8_t *p = head_blob + head_offs[w]; int len = head_offs[w + 1] - head_offs[w];
+  for (int i = 0; i < len && gAnsN < (int)sizeof gAns - 1; i++) gAns[gAnsN++] = (char)p[i];
+  gAns[gAnsN] = 0;
   for (int i = 0; i < len; i++) ui_answer_char((char)p[i]);
   Serial.write(p, len); ble_send((const char *)p, len);
 }
@@ -729,7 +761,7 @@ static void answer_question(const char *q, bool full) {
   ui_question(q); ui_clear_answer();
   if (n > MAXPOS - 8) { out_text("question too long (%d tokens)\n", n); ui_status("question too long", 0, ""); return; }
   out_text("\nQ: %s\n(%d prompt tokens; guessing ahead is %s)\nA:", q, n, g_spec ? "ON" : "OFF");
-  gStart = millis(); gWords = 0;
+  gStart = millis(); gWords = 0; gAnsN = 0; gAns[0] = 0;
   uint32_t t0 = millis();
   gQnum++; logN = 0; logT0 = millis(); logLast = logT0 - LOG_EVERY_MS; logOn = ina_ok;   // first reading goes in right away
   const float e0 = ina_mwh; gE0 = e0; ina_peak_ma = 0;                       // energy meter reading when the question arrived
@@ -807,6 +839,7 @@ static void answer_question(const char *q, bool full) {
   logOn = false;
   if (ina_ok) out_text("%s", log_to_sd(q, full, gWords, total, tPrompt, eq, (float)ina_peak_ma, (float)ina_v, timedOut ? "time_limit" : (finished ? "finished" : "word_limit"))
                        ? "[log: saved to the SD card]\n" : "[log: could NOT be written to the SD card]\n");
+  out_text("%s", log_answer_to_sd(q) ? "[log: answer saved to the SD card]\n" : "[log: answer could NOT be written to the SD card]\n");
   out_text("ready for the next question\n");
   gStart = 0;
 }
@@ -814,6 +847,34 @@ static void answer_question(const char *q, bool full) {
 // /idle: the board waits for 60 s with nothing to do (screen on, Bluetooth as it is now) and the meter averages the draw. Appended to
 // /energy_idle.csv (boot,epoch,seconds,mwh,avg_mw,volts,peak_ma) so the dashboard can subtract it, like the Pi page subtracts its idle watts.
 // Do not send anything while it runs; best done with the phone connected, as during a question.
+// /sdspeed: reads the first 8 MB of model.bin at 20, 26.7, 40 MHz, prints MB/s and a checksum for each. Same checksum = clean reads.
+// Send it when no question is running. Ends with the card mounted at SD_HZ again.
+#include "esp_rom_crc.h"
+static void run_sdspeed() {
+  static const uint32_t hz[3] = {20000000, 26666667, 40000000};
+  const size_t TOTAL = 8u * 1024 * 1024, CH = 32768;
+  uint8_t *buf = (uint8_t *)psalloc(CH, "sdspeed");
+  out_text("sd speed test: first 8 MB of model.bin\n");
+  ui_status("SD speed test", 0, "reading 8 MB at 20, 26.7, 40 MHz");
+  for (int k = 0; k < 3; k++) {
+    gModel.close(); SD.end(); sdspi.end(); delay(200);
+    sdspi.begin(SD_SCK, SD_MISO, SD_MOSI, SD_CS);
+    if (!SD.begin(SD_CS, sdspi, hz[k])) { out_text("%.1f MHz: card did not mount\n", hz[k] / 1e6f); continue; }
+    File f = SD.open("/SMOL360/model.bin", FILE_READ);
+    if (!f) { out_text("%.1f MHz: cannot open model.bin\n", hz[k] / 1e6f); continue; }
+    uint32_t crc = 0, t0 = millis(); size_t done = 0; bool ok = true;
+    while (done < TOTAL) { int g = f.read(buf, CH); if (g <= 0) { ok = false; break; } crc = esp_rom_crc32_le(crc, buf, g); done += g; }
+    uint32_t ms = millis() - t0; f.close();
+    out_text("%.1f MHz: %s, %u bytes in %lu ms = %.2f MB/s, crc %08X\n", hz[k] / 1e6f, ok ? "ok" : "READ FAILED", (unsigned)done, (unsigned long)ms, ms ? done / 1048576.0f / (ms / 1000.0f) : 0.0f, (unsigned)crc);
+  }
+  free(buf);
+  gModel.close(); SD.end(); sdspi.end(); delay(200);
+  sdspi.begin(SD_SCK, SD_MISO, SD_MOSI, SD_CS);
+  if (SD.begin(SD_CS, sdspi, SD_HZ)) gModel = SD.open("/SMOL360/model.bin", FILE_READ);
+  out_text("card is back at %.1f MHz, model %s\n", SD_HZ / 1e6f, gModel ? "open" : "NOT open");
+  ui_status("SD speed test finished", 1.0f, "see serial output");
+}
+
 static void run_idle() {
   if (!ina_ok) { out_text("no INA219 found\n"); return; }
   ui_status("measuring idle power for 60 s: send nothing", 0, "screen on, Bluetooth as it is");
@@ -860,6 +921,7 @@ static char serLine[200]; static int serLen = 0;
 
 void setup() {
   Serial.begin(115200);
+  { esp_task_wdt_config_t wc = {}; wc.timeout_ms = 20000; wc.idle_core_mask = 1; wc.trigger_panic = true; esp_task_wdt_reconfigure(&wc); }   // task watchdog 20 s instead of 5 s
   delay(1500);
   Serial.println("\n=== SmolFem-360M fast demo ===");
   init_lut();
@@ -870,8 +932,21 @@ void setup() {
   tft.init(240, 320, SPI_MODE3); tft.setSPISpeed(40000000); tft.setRotation(1); tft.fillScreen(BLACK);
   ui_title();
   sdspi.begin(SD_SCK, SD_MISO, SD_MOSI, SD_CS);
-  if (!SD.begin(SD_CS, sdspi, 20000000)) { boot_msg("SD card: mount FAILED (reader power?)", ST77XX_RED); return; }
+  if (!SD.begin(SD_CS, sdspi, SD_HZ)) { boot_msg("SD card: mount FAILED (reader power?)", ST77XX_RED); return; }
   char m[64]; snprintf(m, sizeof m, "SD card: %llu MB", SD.cardSize() / 1048576ULL); boot_msg(m, ST77XX_GREEN);
+  {   // why did the board restart? one row per boot in /boots.csv (boot id, reason, battery voltage at boot)
+    esp_reset_reason_t rr = esp_reset_reason();
+    const char *rn = rr == ESP_RST_POWERON ? "power on" : rr == ESP_RST_SW ? "software reset" : rr == ESP_RST_PANIC ? "crash (panic)" :
+                     rr == ESP_RST_INT_WDT ? "watchdog (interrupt)" : rr == ESP_RST_TASK_WDT ? "watchdog (task)" : rr == ESP_RST_WDT ? "watchdog (other)" :
+                     rr == ESP_RST_BROWNOUT ? "brownout (supply voltage dipped)" : rr == ESP_RST_EXT ? "reset pin" : rr == ESP_RST_DEEPSLEEP ? "deep sleep" : "other";
+    char dbg[64] = "";   // where the cores were before this restart (reader 0x1=waiting for buffer, 0x2=reading SD, 0x3=SD re-mount, 0x4=done; main 1=waiting 2=maths 3=screen 4=other)
+    if (gDbgMagic == 0xD00D1234u && rr != ESP_RST_POWERON) snprintf(dbg, sizeof dbg, " | last: reader %X main %u", (unsigned)gDbgR, (unsigned)gDbgM);
+    gDbgMagic = 0xD00D1234u; gDbgR = 0; gDbgM = 0;
+    bool fresh = !SD.exists("/boots.csv");
+    File bf = SD.open("/boots.csv", FILE_APPEND);
+    if (bf) { if (fresh) bf.println("boot,reason_code,reason,volts_at_boot"); bf.printf("%04X,%d,%s%s,%.2f\n", (unsigned)gBootId, (int)rr, rn, dbg, (float)ina_v); bf.close(); }
+    Serial.printf("reset reason: %s\n", rn);
+  }
   if (!load_everything()) return;
 #if USE_BLE
   ble_begin();
@@ -885,7 +960,58 @@ void setup() {
   tft.setTextSize(2); tft.setTextColor(ST77XX_CYAN); tft.setCursor(4, 70); tft.print("Ask me something!");
   tft.setTextSize(1); tft.setTextColor(WHITE); tft.setCursor(4, 100); tft.print("Phone: Serial Bluetooth Terminal -> SmolFem-360M");
   tft.setCursor(4, 112); tft.print("Each answer takes many minutes (SD card speed).");
-  Serial.println("ready. Type a question and press Enter. Commands: /test /test2 /mem /idle /time <unix> /full <question>");
+  Serial.println("ready. Type a question and press Enter. Commands: /batch /idle /time <unix> /full <question> /test /test2 /mem /sdspeed");
+}
+
+// /batch: runs every question in /questions.txt (SD card root, one question per line, empty lines and lines starting with # are skipped)
+// one after the other, no phone needed. Each one gets its energy row, samples and answer in the usual log files.
+// Progress is kept in /batch_pos.txt (number of finished questions): after a power cut, /batch carries on where it stopped.
+// "/batch restart" starts from the first question. If /autorun.txt exists on the card, the batch starts by itself 20 s after boot
+// and /autorun.txt is renamed to /autorun.done when all questions are finished (so it does not run again).
+static int batch_load(char *buf, size_t n, char **lines, int maxl) {
+  File f = SD.open("/questions.txt", FILE_READ);
+  if (!f) return -1;
+  size_t len = f.read((uint8_t *)buf, n - 1); f.close(); buf[len] = 0;
+  char *p = buf; if ((uint8_t)p[0] == 0xEF && (uint8_t)p[1] == 0xBB && (uint8_t)p[2] == 0xBF) p += 3;   // UTF-8 byte order mark
+  int c = 0;
+  while (*p && c < maxl) {
+    char *e = p; while (*e && *e != '\n') e++;
+    char *nx = *e ? e + 1 : e; *e = 0;
+    while (e > p && (e[-1] == '\r' || e[-1] == ' ' || e[-1] == '\t')) *--e = 0;
+    while (*p == ' ' || *p == '\t') p++;
+    if (*p && *p != '#') lines[c++] = p;
+    p = nx;
+  }
+  return c;
+}
+static int batch_pos_read() {
+  File f = SD.open("/batch_pos.txt", FILE_READ); if (!f) return 0;
+  char b[16]; size_t k = f.read((uint8_t *)b, sizeof b - 1); f.close(); b[k] = 0; return atoi(b);
+}
+static void batch_pos_write(int v) {
+  SD.remove("/batch_pos.txt");
+  File f = SD.open("/batch_pos.txt", FILE_WRITE); if (!f) return; f.print(v); f.close();
+}
+static void run_batch(bool restart) {
+  static char buf[6000]; static char *lines[60];
+  int total = batch_load(buf, sizeof buf, lines, 60);
+  if (total < 0) { out_text("batch: /questions.txt not found on the SD card\n"); ui_status("batch: no /questions.txt on the card", 0, ""); return; }
+  if (total == 0) { out_text("batch: /questions.txt has no questions\n"); return; }
+  int pos = restart ? 0 : batch_pos_read();
+  if (pos >= total) pos = 0;
+  out_text("batch: %d questions, starting at %d%s\n", total, pos + 1, pos ? " (carrying on after an earlier stop)" : "");
+  for (int i = pos; i < total; i++) {
+    out_text("\n=== batch question %d of %d ===\n", i + 1, total);
+    const char *ql = lines[i]; bool fullAns = BATCH_FULL;           // all batch answers get the long limit (60 words) unless the line starts with "/short "
+    if (!strncmp(ql, "/short ", 7)) { ql += 7; fullAns = false; } else if (!strncmp(ql, "/full ", 6)) { ql += 6; fullAns = true; }
+    answer_question(ql, fullAns);
+    batch_pos_write(i + 1);
+  }
+  SD.remove("/batch_pos.txt");
+  if (SD.exists("/autorun.txt")) { SD.remove("/autorun.done"); SD.rename("/autorun.txt", "/autorun.done"); }
+  char m[64]; snprintf(m, sizeof m, "batch finished: %d questions", total);
+  ui_status(m, 1.0f, "answers are in /energy_answers.csv");
+  out_text("[%s]\n", m);
 }
 
 static void handle_line(char *line) {
@@ -895,6 +1021,9 @@ static void handle_line(char *line) {
   if (!strcmp(line, "/test2")) { run_selftest(2); return; }
   if (!strcmp(line, "/spec")) { g_spec = !g_spec; out_text("guessing ahead is now %s\n", g_spec ? "ON" : "OFF"); return; }
   if (!strcmp(line, "/idle")) { run_idle(); return; }
+  if (!strcmp(line, "/sdspeed")) { run_sdspeed(); return; }
+  if (!strcmp(line, "/batch")) { run_batch(false); return; }
+  if (!strcmp(line, "/batch restart")) { run_batch(true); return; }
   if (!strncmp(line, "/time ", 6)) {                       // /time 1792000000 : tells the board the real time (unix seconds) for the log
     gEpochAtBoot = atoll(line + 6) - (long long)(millis() / 1000);
     out_text("clock set; the log now carries real times\n"); return;
@@ -926,6 +1055,8 @@ void loop() {
     static char q[200]; int n = ble_len; memcpy(q, ble_line, n); q[n] = 0; ble_len = 0; ble_ready = false;
     handle_line(q);
   }
+  static bool autoChecked = false;
+  if (!autoChecked && millis() > 20000) { autoChecked = true; if (SD.exists("/autorun.txt")) run_batch(false); }
   delay(5);
 }
 

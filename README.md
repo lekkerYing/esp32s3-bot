@@ -18,7 +18,7 @@ Run the scripts from the `scripts` folder, in this order. They read settings fro
 
 The scripts need Python with torch, transformers and numpy. They were written on Windows and tested there.
 
-The results are written up as a post on the Sun Shines Bright site (comparison with the solarbot on a Raspberry Pi 5): https://github.com/computational-mama/sunshinesbright/tree/main/content/posts/esp32-comparison
+The results are written up as a post on the Sun Shines Bright site (comparison with the solarbot on a Raspberry Pi 5): https://solararchive.cmama.xyz/2026/11/esp32-comparison/
 
 Wiring of the build: [docs/images/wiring-esp32.png](docs/images/wiring-esp32.png)
 

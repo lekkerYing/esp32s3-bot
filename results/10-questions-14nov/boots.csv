@@ -1,0 +1,21 @@
+boot,reason_code,reason,volts_at_boot
+D6D2,1,power on,0.00
+66CB,1,power on,0.00
+5013,9,brownout (supply voltage dipped),5.02
+15A8,6,watchdog (task),5.11
+F5DB,6,watchdog (task),5.04
+DBCF,1,power on,0.00
+0F43,1,power on,0.00
+D998,6,watchdog (task),5.04
+8AA6,6,watchdog (task),5.04
+D44B,6,watchdog (task),5.10
+F9F8,6,watchdog (task),5.04
+973A,6,watchdog (task),5.11
+1978,9,brownout (supply voltage dipped),5.09
+606F,6,watchdog (task),5.10
+4879,6,watchdog (task),5.02
+790D,6,watchdog (task),5.10
+13A9,6,watchdog (task),5.01
+7595,6,watchdog (task),5.03
+9589,6,watchdog (task),5.03
+893C,9,brownout (supply voltage dipped),5.05

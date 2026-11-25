@@ -21,6 +21,8 @@ The model is smolFem, a small language model by Ambika, fine-tuned on her femini
 
 Hold the board with the antenna at the top and the two USB-C ports at the bottom. The board has only two 3V3 pins but three parts need 3V3, so put a wire from a 3V3 pin to the 3V3 rail of the breadboard and a wire from a GND pin to the GND rail, and connect the parts to the rails.
 
+![Wiring of the ESP32 build](images/wiring-esp32.png)
+
 **Screen (ST7789V)**
 
     Screen VCC  to  3V3 rail

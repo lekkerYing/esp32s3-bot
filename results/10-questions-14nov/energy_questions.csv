@@ -1,0 +1,31 @@
+boot,q,epoch,question,full,words,seconds,question_pass_s,mwh,avg_mw,peak_ma,volts,how_it_ended
+AA5F,1,0,"Who is Fei-Fei Li?",0,30,334.6,207.2,79.246,853,238,5.10,word_limit
+677C,1,0,"what is your name?",0,30,3550.0,147.1,845.556,857,242,5.11,word_limit
+AA11,1,0,"Who is Fei-Fei Li?",0,30,331.3,203.2,92.507,1005,258,5.08,word_limit
+481C,1,0,"What do we learn from Le Guin’s carrier bag theory of fiction?",0,30,3226.7,198.5,888.825,992,259,4.97,word_limit
+481C,2,0,"What does Spivak mean by “epistemic violence”?",0,30,893.5,146.4,244.235,984,256,4.94,word_limit
+18BF,1,0,"Explain the carrier bag theory in one sentence.",0,30,3204.6,163.8,881.993,991,271,5.00,word_limit
+69FF,1,0,"What does Vandana Shiva mean by “monocultures of the mind”?",0,30,3704.6,150.2,1017.035,988,259,5.03,word_limit
+69FF,2,0,"How does Vandana Shiva connect seed sovereignty to the way AI is built and owned?",0,30,3603.9,201.8,980.896,980,258,5.06,word_limit
+295B,1,0,"What does Audre Lorde mean by “the master’s tools will never dismantle the master’s house”?",0,30,3369.0,194.3,908.471,971,257,4.99,word_limit
+295B,2,0,"What does Audre Lorde say about the uses of the erotic, and how could that apply to how we work with technology?",0,30,3500.7,201.7,949.896,977,257,5.03,word_limit
+295B,3,0,"Who is Gayatri Chakravorty Spivak?",0,30,3315.8,188.7,893.340,970,257,4.98,word_limit
+40C0,1,0,"Who is Audre Lorde?",0,30,2972.1,153.7,821.278,995,257,5.08,word_limit
+5A0F,1,0,"who is fei fei li?",0,30,2505.5,160.0,-0.004,-0,0,0.05,word_limit
+7B70,1,0,"Who is Fei-Fei Li?",1,45,396.7,202.9,105.550,958,265,5.02,finished
+04E7,1,0,"What do we learn from Le Guin’s carrier bag theory of fiction?",1,60,6112.2,198.5,1666.964,982,269,5.06,word_limit
+04E7,2,0,"What does Spivak mean by “epistemic violence”?",1,60,3443.3,149.6,938.880,982,265,5.07,word_limit
+04E7,3,0,"Explain the carrier bag theory in one sentence.",1,60,6754.3,167.2,1859.939,991,271,5.01,word_limit
+BE92,1,0,"What does Vandana Shiva mean by “monocultures of the mind”?",1,60,7540.2,153.3,2050.273,979,269,4.99,word_limit
+BE92,2,0,"How does Vandana Shiva connect seed sovereignty to the way AI is built and owned?",1,60,6719.8,204.6,1836.526,984,274,5.02,word_limit
+94C3,1,0,"What does Audre Lorde mean by “the master’s tools will never dismantle the master’s house”?",1,60,6407.7,194.3,1794.178,1008,273,5.04,word_limit
+5013,1,0,"Who is Fei-Fei Li?",0,30,331.8,204.1,93.247,1012,272,5.08,word_limit
+D44B,1,0,"What do we learn from Le Guin’s carrier bag theory of fiction?",0,30,3226.4,199.6,886.681,989,268,5.01,word_limit
+D44B,2,0,"What does Spivak mean by “epistemic violence”?",0,30,888.2,144.7,247.953,1005,263,5.03,word_limit
+F9F8,1,0,"Explain the carrier bag theory in one sentence.",0,30,3205.9,164.8,893.671,1004,271,5.05,word_limit
+1978,1,0,"What does Vandana Shiva mean by “monocultures of the mind”?",0,30,3696.7,150.9,1039.573,1012,273,5.10,word_limit
+1978,2,0,"How does Vandana Shiva connect seed sovereignty to the way AI is built and owned?",0,30,3608.1,206.0,1008.107,1006,276,5.04,word_limit
+1978,3,0,"What does Audre Lorde mean by “the master’s tools will never dismantle the master’s house”?",0,30,3373.4,195.4,940.406,1004,274,5.07,word_limit
+606F,1,0,"What does Audre Lorde say about the uses of the erotic, and how could that apply to how we work with technology?",0,30,3499.7,199.6,973.447,1001,270,5.01,word_limit
+9589,1,0,"Who is Gayatri Chakravorty Spivak?",0,30,3308.7,183.5,907.997,988,273,5.03,word_limit
+9589,2,0,"Who is Audre Lorde?",0,30,2962.7,154.4,823.498,1001,275,5.04,word_limit
